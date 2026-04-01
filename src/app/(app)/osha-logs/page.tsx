@@ -1,0 +1,174 @@
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { OSHA300Actions } from "./osha-300-actions";
+import { AttributionFooter } from "@/components/layout/attribution-footer";
+
+export const dynamic = "force-dynamic";
+
+export default async function OSHALogsPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/login");
+
+  const companyId = user.app_metadata?.company_id;
+  if (!companyId) redirect("/company/setup");
+
+  const currentYear = new Date().getFullYear();
+
+  // Get company info
+  const { data: company } = await supabase
+    .from("companies")
+    .select("name, ein, address, state, employee_count")
+    .eq("id", companyId)
+    .single();
+
+  // BUG-SV-026: Add explicit company_id filters for defense-in-depth
+  // Get OSHA 300 entries for current year
+  const { data: entries } = await supabase
+    .from("osha_300_entries")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("year", currentYear)
+    .order("case_number")
+    .range(0, 199);
+
+  // Get count of unprocessed reportable incidents
+  const { data: allReportable } = await supabase
+    .from("incidents")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("osha_reportable", true)
+    .eq("incident_type", "injury")
+    .gte("occurred_at", `${currentYear}-01-01T00:00:00Z`)
+    .lte("occurred_at", `${currentYear}-12-31T23:59:59Z`)
+    .range(0, 199);
+
+  const existingIncidentIds = new Set((entries || []).map((e) => e.incident_id));
+  const unprocessedCount = (allReportable || []).filter((i) => !existingIncidentIds.has(i.id)).length;
+
+  // Summary stats for 300A
+  const totalEntries = entries?.length || 0;
+  const totalDeaths = entries?.filter((e) => e.death).length || 0;
+  const totalDaysAway = entries?.reduce((sum, e) => sum + (e.days_away || 0), 0) || 0;
+  const totalDaysRestricted = entries?.reduce((sum, e) => sum + (e.days_restricted || 0), 0) || 0;
+
+  return (
+    <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+          OSHA 300 Log
+        </h1>
+        <p className="text-sm text-concrete-600 mt-1">
+          {company?.name || "Your Company"} · {currentYear} Log of Work-Related Injuries and Illnesses
+        </p>
+      </div>
+
+      {/* 300A Summary Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+        <h2 className="text-sm font-bold text-slate-900 mb-4">
+          Form 300A Summary — {currentYear}
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-xs text-concrete-600">Total Cases</p>
+            <p className="text-2xl font-extrabold text-slate-900">{totalEntries}</p>
+          </div>
+          <div>
+            <p className="text-xs text-concrete-600">Deaths</p>
+            <p className={`text-2xl font-extrabold ${totalDeaths > 0 ? "text-red-600" : "text-slate-900"}`}>
+              {totalDeaths}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-concrete-600">Days Away</p>
+            <p className="text-2xl font-extrabold text-slate-900">{totalDaysAway}</p>
+          </div>
+          <div>
+            <p className="text-xs text-concrete-600">Days Restricted</p>
+            <p className="text-2xl font-extrabold text-slate-900">{totalDaysRestricted}</p>
+          </div>
+        </div>
+        {company && (
+          <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-concrete-600">
+            <p>EIN: {company.ein || "Not set"}</p>
+            <p>Employees: {company.employee_count}</p>
+            <p>Address: {company.address || "Not set"}</p>
+            <p>State: {company.state || "Not set"}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <OSHA300Actions year={currentYear} unprocessedCount={unprocessedCount} />
+
+      {/* Entries Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h2 className="text-sm font-bold text-slate-900">
+            Log Entries ({totalEntries})
+          </h2>
+        </div>
+        {totalEntries === 0 ? (
+          <div className="text-center py-8 text-concrete-600">
+            <p className="text-sm">No OSHA 300 entries for {currentYear}.</p>
+            <p className="text-xs mt-1">
+              {unprocessedCount > 0
+                ? `${unprocessedCount} reportable incident${unprocessedCount !== 1 ? "s" : ""} can be auto-generated.`
+                : "Report injuries marked as OSHA-reportable to populate this log."}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-left text-xs text-concrete-600">
+                  <th className="px-4 py-3 font-semibold">Case #</th>
+                  <th className="px-4 py-3 font-semibold">Employee</th>
+                  <th className="px-4 py-3 font-semibold">Title</th>
+                  <th className="px-4 py-3 font-semibold">Date</th>
+                  <th className="px-4 py-3 font-semibold">Location</th>
+                  <th className="px-4 py-3 font-semibold">Description</th>
+                  <th className="px-4 py-3 font-semibold">Classification</th>
+                  <th className="px-4 py-3 font-semibold text-center">Away</th>
+                  <th className="px-4 py-3 font-semibold text-center">Restr.</th>
+                  <th className="px-4 py-3 font-semibold text-center">Death</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(entries || []).map((entry) => (
+                  <tr key={entry.id} className="border-t border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-3 font-mono text-xs">{entry.case_number}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{entry.employee_name}</td>
+                    <td className="px-4 py-3 text-concrete-600">{entry.job_title}</td>
+                    <td className="px-4 py-3 text-concrete-600 whitespace-nowrap">{entry.date_of_injury}</td>
+                    <td className="px-4 py-3 text-concrete-600 max-w-[120px] truncate">{entry.where_event_occurred || "—"}</td>
+                    <td className="px-4 py-3 text-concrete-600 max-w-[200px] truncate">{entry.description}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                        entry.death
+                          ? "bg-red-100 text-red-700"
+                          : entry.classification === "Days away from work"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-slate-100 text-slate-600"
+                      }`}>
+                        {entry.classification}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">{entry.days_away}</td>
+                    <td className="px-4 py-3 text-center">{entry.days_restricted}</td>
+                    <td className="px-4 py-3 text-center">
+                      {entry.death && <span className="text-red-600 font-bold">Y</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <AttributionFooter />
+    </div>
+  );
+}
