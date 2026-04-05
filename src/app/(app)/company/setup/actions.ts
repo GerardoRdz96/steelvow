@@ -40,8 +40,11 @@ export async function setupCompany(formData: FormData) {
   // BUG-SV-009: Validate input server-side
   const validated = validateCompanyInput(formData);
 
-  // Create company
-  const { data: company, error: companyError } = await supabase
+  // Create company using admin client to bypass RLS SELECT restriction
+  // (user doesn't have company_id in app_metadata yet, so SELECT policy blocks .select())
+  const adminClient = createAdminClient();
+
+  const { data: company, error: companyError } = await adminClient
     .from("companies")
     .insert(validated)
     .select()
@@ -52,9 +55,6 @@ export async function setupCompany(formData: FormData) {
     console.error("setupCompany error:", companyError.message);
     throw new Error("Failed to create company. Please try again.");
   }
-
-  // BUG-SV-046: Use service role client for admin API (anon key lacks admin privileges)
-  const adminClient = createAdminClient();
   const { error: userError } = await adminClient.auth.admin.updateUserById(user.id, {
     app_metadata: {
       company_id: company.id,
