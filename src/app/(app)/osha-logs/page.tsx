@@ -15,7 +15,7 @@ export default async function OSHALogsPage() {
 
   const currentYear = new Date().getFullYear();
 
-  // BUG-SV-025: Wrap all queries in try-catch to prevent page freeze on DB errors
+  // BUG-SV-025: Run queries in parallel + try-catch to prevent page freeze
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let company: any = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,42 +24,33 @@ export default async function OSHALogsPage() {
   let queryError = false;
 
   try {
-    // Get company info
-    const { data: companyData } = await supabase
-      .from("companies")
-      .select("name, ein, address, state, employee_count")
-      .eq("id", companyId)
-      .single();
-    company = companyData;
+    // BUG-SV-025: Parallel queries prevent sequential hang (if one query is slow, others don't wait)
+    // BUG-SV-025: Promise.resolve() wraps PromiseLike into proper Promise for parallel execution
+    const companyQuery = Promise.resolve(
+      supabase.from("companies").select("name, ein, address, state, employee_count").eq("id", companyId).single()
+    ).catch(() => ({ data: null, error: { message: "company query failed" } }));
 
-    // Get OSHA 300 entries for current year
-    const { data: entriesData, error: entriesErr } = await supabase
-      .from("osha_300_entries")
-      .select("*")
-      .eq("company_id", companyId)
-      .eq("year", currentYear)
-      .order("case_number")
-      .range(0, 199);
+    const entriesQuery = Promise.resolve(
+      supabase.from("osha_300_entries").select("*").eq("company_id", companyId).eq("year", currentYear).order("case_number").range(0, 199)
+    ).catch(() => ({ data: null, error: { message: "entries query failed" } }));
 
-    if (entriesErr) {
-      console.error("OSHA 300 entries query error:", entriesErr.message);
+    const reportableQuery = Promise.resolve(
+      supabase.from("incidents").select("id").eq("company_id", companyId).eq("osha_reportable", true).eq("incident_type", "injury").gte("occurred_at", `${currentYear}-01-01T00:00:00Z`).lte("occurred_at", `${currentYear}-12-31T23:59:59Z`).range(0, 199)
+    ).catch(() => ({ data: null, error: { message: "incidents query failed" } }));
+
+    const [companyRes, entriesRes, reportableRes] = await Promise.all([companyQuery, entriesQuery, reportableQuery]);
+
+    company = companyRes.data;
+
+    if (entriesRes.error) {
+      console.error("OSHA 300 entries query error:", entriesRes.error.message);
       queryError = true;
     }
-    entries = entriesData;
+    entries = entriesRes.data;
 
-    // Get count of unprocessed reportable incidents
-    const { data: allReportable } = await supabase
-      .from("incidents")
-      .select("id")
-      .eq("company_id", companyId)
-      .eq("osha_reportable", true)
-      .eq("incident_type", "injury")
-      .gte("occurred_at", `${currentYear}-01-01T00:00:00Z`)
-      .lte("occurred_at", `${currentYear}-12-31T23:59:59Z`)
-      .range(0, 199);
-
+    const allReportable = reportableRes.data;
     const existingIncidentIds = new Set((entries || []).map((e: { incident_id: string }) => e.incident_id));
-    unprocessedCount = (allReportable || []).filter((i) => !existingIncidentIds.has(i.id)).length;
+    unprocessedCount = (allReportable || []).filter((i: { id: string }) => !existingIncidentIds.has(i.id)).length;
   } catch (err) {
     console.error("OSHA Logs page error:", err);
     queryError = true;
