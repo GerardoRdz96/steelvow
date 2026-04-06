@@ -49,23 +49,32 @@ function CertBadge({ date, label }: { date: string | null; label: string }) {
 }
 
 export default async function WorkersPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
+  let workers: Worker[] = [];
+  let companyId: string | undefined;
 
-  const companyId = user.app_metadata?.company_id;
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) redirect("/auth/login");
 
-  // BUG-SV-017: Limit query to 50 records (Business tier max)
-  const { data: workers } = companyId
-    ? await supabase
+    companyId = user.app_metadata?.company_id;
+
+    // BUG-SV-017: Limit query to 50 records (Business tier max)
+    if (companyId) {
+      const { data, error } = await supabase
         .from("workers")
         .select("*")
         .eq("company_id", companyId)
         .order("name")
-        .range(0, 49)
-    : { data: [] as Worker[] };
+        .range(0, 49);
+      if (error) console.error("Workers query error:", error.message);
+      workers = (data || []) as Worker[];
+    }
+  } catch (e) {
+    console.error("WorkersPage error:", e);
+  }
 
-  const activeWorkers = (workers || []).filter((w: Worker) => w.is_active);
+  const activeWorkers = workers.filter((w: Worker) => w.is_active);
   const inactiveWorkers = (workers || []).filter((w: Worker) => !w.is_active);
 
   // Count cert alerts
