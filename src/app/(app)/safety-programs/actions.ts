@@ -5,15 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { SafetyProgramType, Language } from "@/types/database";
 
-const PROGRAM_LABELS: Record<SafetyProgramType, { en: string; es: string }> = {
-  fall_protection: { en: "Fall Protection Program", es: "Programa de Protección contra Caídas" },
-  hazcom: { en: "Hazard Communication Program", es: "Programa de Comunicación de Peligros" },
-  respiratory: { en: "Respiratory Protection Program", es: "Programa de Protección Respiratoria" },
-  loto: { en: "Lockout/Tagout Program", es: "Programa de Bloqueo/Etiquetado" },
-  heat: { en: "Heat Illness Prevention Program", es: "Programa de Prevención de Enfermedades por Calor" },
-};
-
-export { PROGRAM_LABELS };
+import { PROGRAM_LABELS } from "@/lib/safety-program-labels";
 
 export async function getSafetyPrograms() {
   const supabase = await createClient();

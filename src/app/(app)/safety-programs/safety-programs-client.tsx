@@ -2,7 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { generateSafetyProgram, deleteSafetyProgram, PROGRAM_LABELS } from "./actions";
+import { generateSafetyProgram, deleteSafetyProgram } from "./actions";
+import { PROGRAM_LABELS } from "@/lib/safety-program-labels";
 import { useI18n } from "@/lib/i18n/context";
 import type { SafetyProgram, SafetyProgramType, Language } from "@/types/database";
 

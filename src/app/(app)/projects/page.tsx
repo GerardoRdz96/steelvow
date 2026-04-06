@@ -22,7 +22,10 @@ export default async function ProjectsPage() {
     .range(0, 49);
 
   // BUG-SV-043: Don't leak raw Supabase error messages to client
-  if (error) throw new Error("Failed to load projects. Please try again.");
+  // BUG-SV-064: Log error but don't crash — show empty state instead
+  if (error) {
+    console.error("Projects query error:", error.message);
+  }
 
   return (
     <div className="px-4 py-6 md:px-8 max-w-2xl mx-auto">
