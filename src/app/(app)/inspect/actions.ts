@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_RESULTS = ["pass", "fail", "na", null] as const;
+// SEC-SV-006: Photo path validation — prevent path traversal and enforce format
+const PHOTO_PATH_REGEX = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp)$/i;
 
 interface SyncInspectionInput {
   offlineId: string;
@@ -38,6 +40,12 @@ function validateInspectionInput(input: SyncInspectionInput): string | null {
     if (f.label.length > 500) return "Finding label too long (max 500 chars)";
     if (f.result !== null && !["pass", "fail", "na"].includes(f.result)) return "Invalid finding result";
     if (f.notes && f.notes.length > 2000) return "Finding notes too long (max 2000 chars)";
+    // SEC-SV-006: Validate photoPath format if present
+    if (f.photoPath !== null) {
+      if (typeof f.photoPath !== "string" || f.photoPath.length > 500) return "Invalid photo path";
+      if (f.photoPath.includes("..") || f.photoPath.includes("//") || f.photoPath.startsWith("/")) return "Invalid photo path (traversal detected)";
+      if (!PHOTO_PATH_REGEX.test(f.photoPath)) return "Invalid photo path format";
+    }
   }
   if (input.score !== null && (typeof input.score !== "number" || input.score < 0 || input.score > 100)) return "Score must be 0-100 or null";
   if (input.completedAt !== null && isNaN(Date.parse(input.completedAt))) return "Invalid completedAt date";

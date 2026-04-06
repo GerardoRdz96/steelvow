@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n/context";
-import { STEELVOW_PRICES } from "@/lib/stripe";
+import { STEELVOW_PRICES } from "@/lib/pricing-data";
 import type { PlanTier } from "@/types/database";
 
 const PLANS: Array<{ tier: PlanTier; workers: number; projects: number; popular?: boolean }> = [

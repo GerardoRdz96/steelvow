@@ -19,8 +19,8 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self)" },
-          // BUG-SV-015: Content Security Policy — BUG-SV-019: removed unsafe-eval
-          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com; img-src 'self' data: blob:; font-src 'self'; frame-src https://js.stripe.com; worker-src 'self'" },
+          // BUG-SV-015: Content Security Policy — BUG-SV-019: removed unsafe-eval — BUG-SV-063: allow Google Fonts
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; frame-src https://js.stripe.com; worker-src 'self'" },
         ],
       },
     ];

@@ -109,8 +109,24 @@ export function ToolboxTalkForm({
 
   const saveSignature = () => {
     if (!signingFor || !canvasRef.current) return;
+    // SEC-SV-007: Validate signature canvas is not blank before saving
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const hasContent = imageData.data.some((val, i) => i % 4 !== 3 && val !== 0);
+      if (!hasContent) {
+        setError("Please draw your signature before saving.");
+        return;
+      }
+    }
     // BUG-SV-021: Use JPEG at 50% quality to reduce base64 bloat (~5x smaller)
-    const dataUrl = canvasRef.current.toDataURL("image/jpeg", 0.5);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.5);
+    // SEC-SV-007: Reject signatures exceeding 500KB base64 (prevents DB bloat)
+    if (dataUrl.length > 500_000) {
+      setError("Signature too complex. Please clear and sign again.");
+      return;
+    }
     setSignatures((prev) => ({ ...prev, [signingFor]: dataUrl }));
     setSigningFor(null);
     clearCanvas();

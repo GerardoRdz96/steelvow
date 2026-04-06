@@ -23,6 +23,26 @@ interface SyncIncidentInput {
   createdAt: string;
 }
 
+// SEC-SV-006: Validate photo storage paths — prevent path traversal and enforce format
+const PHOTO_PATH_REGEX = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp)$/i;
+
+function validatePhotoPath(path: string): boolean {
+  if (typeof path !== "string" || path.length > 500) return false;
+  if (path.includes("..") || path.includes("//") || path.startsWith("/")) return false;
+  return PHOTO_PATH_REGEX.test(path);
+}
+
+// SEC-SV-007: Validate signature data URLs — prevent oversized or malformed data
+const SIGNATURE_DATA_URL_PREFIX = "data:image/jpeg;base64,";
+const MAX_SIGNATURE_SIZE = 500_000; // 500KB base64
+
+function validateSignature(value: string): boolean {
+  if (typeof value !== "string") return false;
+  if (value.length > MAX_SIGNATURE_SIZE) return false;
+  if (!value.startsWith(SIGNATURE_DATA_URL_PREFIX)) return false;
+  return true;
+}
+
 function validateIncidentInput(input: SyncIncidentInput): string | null {
   if (!input.offlineId || !UUID_REGEX.test(input.offlineId)) return "Invalid offlineId";
   if (!input.projectId || !UUID_REGEX.test(input.projectId)) return "Invalid projectId";
@@ -36,6 +56,10 @@ function validateIncidentInput(input: SyncIncidentInput): string | null {
   // BUG-SV-037: Validate privacyConcern is boolean (OSHA 300 privacy case logic)
   if (typeof input.privacyConcern !== "boolean") return "privacyConcern must be boolean";
   if (!Array.isArray(input.photos) || input.photos.length > 20) return "Photos must be array (max 20)";
+  // SEC-SV-006: Validate each photo path format and prevent path traversal
+  for (const photo of input.photos) {
+    if (!validatePhotoPath(photo)) return "Invalid photo path format";
+  }
   return null;
 }
 
@@ -109,6 +133,15 @@ function validateToolboxTalkInput(input: SyncToolboxTalkInput): string | null {
   if (!Array.isArray(input.attendees) || input.attendees.length === 0) return "At least one attendee required";
   if (input.attendees.length > 200) return "Max 200 attendees";
   if (input.notes && input.notes.length > 5000) return "Notes too long (max 5000 chars)";
+  // SEC-SV-007: Validate each signature is a valid, size-limited JPEG data URL
+  if (input.signatures && typeof input.signatures === "object") {
+    const sigEntries = Object.entries(input.signatures);
+    if (sigEntries.length > 200) return "Max 200 signatures";
+    for (const [key, value] of sigEntries) {
+      if (!UUID_REGEX.test(key)) return "Invalid signature key (must be UUID)";
+      if (!validateSignature(value)) return "Invalid or oversized signature data";
+    }
+  }
   return null;
 }
 

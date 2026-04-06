@@ -1,18 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AttributionFooter } from "@/components/layout/attribution-footer";
 
-export default function LoginPage() {
+const ERROR_MESSAGES: Record<string, string> = {
+  auth_failed: "Authentication failed. Please try again.",
+};
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"error" | "success">("error");
   const [showMagicLink, setShowMagicLink] = useState(false);
+
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam) {
+      setMessageType("error");
+      setMessage(ERROR_MESSAGES[errorParam] || "An error occurred. Please try again.");
+    }
+  }, [searchParams]);
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -189,5 +202,13 @@ export default function LoginPage() {
         <AttributionFooter />
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
