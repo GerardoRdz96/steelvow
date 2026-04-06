@@ -40,5 +40,26 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // BUG-SV-021/023: Force company setup before any CRUD pages
+  // Users without company_id can only access setup, profile, dashboard, pricing
+  if (user && !isPublicPath) {
+    const companyId = user.app_metadata?.company_id;
+    const pathname = request.nextUrl.pathname;
+    const allowedWithoutCompany = [
+      "/company/setup",
+      "/profile",
+      "/dashboard",
+      "/pricing",
+    ];
+    const needsCompany = !allowedWithoutCompany.some((p) =>
+      pathname.startsWith(p)
+    );
+    if (!companyId && needsCompany) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/company/setup";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }

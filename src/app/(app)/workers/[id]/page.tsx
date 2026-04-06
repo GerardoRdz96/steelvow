@@ -21,12 +21,21 @@ function getDaysUntilExpiry(dateStr: string | null): number | null {
   return Math.floor((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+// BUG-SV-027: UUID format regex — prevents Postgres "invalid input syntax" crash
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function WorkerDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // BUG-SV-027: Validate UUID format BEFORE querying to prevent Postgres type error
+  if (!UUID_REGEX.test(id)) {
+    notFound();
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
@@ -36,18 +45,25 @@ export default async function WorkerDetailPage({
 
   // BUG-SV-010: Handle Supabase query errors
   // BUG-SV-040: Filter by company_id to prevent cross-tenant data access
-  const { data: worker, error } = await supabase
-    .from("workers")
-    .select("*")
-    .eq("id", id)
-    .eq("company_id", companyId)
-    .single();
+  let worker = null;
+  try {
+    const { data, error } = await supabase
+      .from("workers")
+      .select("*")
+      .eq("id", id)
+      .eq("company_id", companyId)
+      .single();
 
-  // BUG-SV-044: Don't leak raw Supabase error messages to client
-  if (error) {
-    throw new Error("Failed to load worker. Please try again.");
+    // BUG-SV-022: .single() returns PGRST116 when no row found — show 404, not crash
+    // BUG-SV-044: Don't leak raw Supabase error messages to client
+    if (error || !data) {
+      notFound();
+    }
+    worker = data;
+  } catch {
+    // BUG-SV-026: Any unexpected DB error should show 404, not crash with error boundary
+    notFound();
   }
-  if (!worker) notFound();
 
   return (
     <div className="px-4 py-6 md:px-8 max-w-2xl mx-auto">

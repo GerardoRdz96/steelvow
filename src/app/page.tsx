@@ -11,6 +11,7 @@ export default function LandingPage() {
         </span>
         <Link
           href="/auth/login"
+          prefetch={true}
           className="bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
         >
           Sign In

@@ -15,42 +15,61 @@ export default async function OSHALogsPage() {
 
   const currentYear = new Date().getFullYear();
 
-  // Get company info
-  const { data: company } = await supabase
-    .from("companies")
-    .select("name, ein, address, state, employee_count")
-    .eq("id", companyId)
-    .single();
+  // BUG-SV-025: Wrap all queries in try-catch to prevent page freeze on DB errors
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let company: any = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let entries: any[] | null = null;
+  let unprocessedCount = 0;
+  let queryError = false;
 
-  // BUG-SV-026: Add explicit company_id filters for defense-in-depth
-  // Get OSHA 300 entries for current year
-  const { data: entries } = await supabase
-    .from("osha_300_entries")
-    .select("*")
-    .eq("company_id", companyId)
-    .eq("year", currentYear)
-    .order("case_number")
-    .range(0, 199);
+  try {
+    // Get company info
+    const { data: companyData } = await supabase
+      .from("companies")
+      .select("name, ein, address, state, employee_count")
+      .eq("id", companyId)
+      .single();
+    company = companyData;
 
-  // Get count of unprocessed reportable incidents
-  const { data: allReportable } = await supabase
-    .from("incidents")
-    .select("id")
-    .eq("company_id", companyId)
-    .eq("osha_reportable", true)
-    .eq("incident_type", "injury")
-    .gte("occurred_at", `${currentYear}-01-01T00:00:00Z`)
-    .lte("occurred_at", `${currentYear}-12-31T23:59:59Z`)
-    .range(0, 199);
+    // Get OSHA 300 entries for current year
+    const { data: entriesData, error: entriesErr } = await supabase
+      .from("osha_300_entries")
+      .select("*")
+      .eq("company_id", companyId)
+      .eq("year", currentYear)
+      .order("case_number")
+      .range(0, 199);
 
-  const existingIncidentIds = new Set((entries || []).map((e) => e.incident_id));
-  const unprocessedCount = (allReportable || []).filter((i) => !existingIncidentIds.has(i.id)).length;
+    if (entriesErr) {
+      console.error("OSHA 300 entries query error:", entriesErr.message);
+      queryError = true;
+    }
+    entries = entriesData;
+
+    // Get count of unprocessed reportable incidents
+    const { data: allReportable } = await supabase
+      .from("incidents")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("osha_reportable", true)
+      .eq("incident_type", "injury")
+      .gte("occurred_at", `${currentYear}-01-01T00:00:00Z`)
+      .lte("occurred_at", `${currentYear}-12-31T23:59:59Z`)
+      .range(0, 199);
+
+    const existingIncidentIds = new Set((entries || []).map((e: { incident_id: string }) => e.incident_id));
+    unprocessedCount = (allReportable || []).filter((i) => !existingIncidentIds.has(i.id)).length;
+  } catch (err) {
+    console.error("OSHA Logs page error:", err);
+    queryError = true;
+  }
 
   // Summary stats for 300A
   const totalEntries = entries?.length || 0;
   const totalDeaths = entries?.filter((e) => e.death).length || 0;
-  const totalDaysAway = entries?.reduce((sum, e) => sum + (e.days_away || 0), 0) || 0;
-  const totalDaysRestricted = entries?.reduce((sum, e) => sum + (e.days_restricted || 0), 0) || 0;
+  const totalDaysAway = entries?.reduce((sum: number, e: { days_away?: number }) => sum + (e.days_away || 0), 0) || 0;
+  const totalDaysRestricted = entries?.reduce((sum: number, e: { days_restricted?: number }) => sum + (e.days_restricted || 0), 0) || 0;
 
   return (
     <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto">
@@ -63,6 +82,15 @@ export default async function OSHALogsPage() {
           {company?.name || "Your Company"} · {currentYear} Log of Work-Related Injuries and Illnesses
         </p>
       </div>
+
+      {/* BUG-SV-025: Show error banner if DB queries failed instead of crashing */}
+      {queryError && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6">
+          <p className="text-sm font-semibold text-red-800">
+            Could not load all OSHA log data. Some information may be missing. Please try refreshing.
+          </p>
+        </div>
+      )}
 
       {/* 300A Summary Card */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
@@ -136,13 +164,13 @@ export default async function OSHALogsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(entries || []).map((entry) => (
+                {(entries || []).map((entry: { id: string; case_number: string; employee_name: string; job_title: string; date_of_injury: string; where_event_occurred?: string; description: string; classification: string; days_away: number; days_restricted: number; death: boolean }) => (
                   <tr key={entry.id} className="border-t border-slate-100 hover:bg-slate-50">
                     <td className="px-4 py-3 font-mono text-xs">{entry.case_number}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{entry.employee_name}</td>
                     <td className="px-4 py-3 text-concrete-600">{entry.job_title}</td>
                     <td className="px-4 py-3 text-concrete-600 whitespace-nowrap">{entry.date_of_injury}</td>
-                    <td className="px-4 py-3 text-concrete-600 max-w-[120px] truncate">{entry.where_event_occurred || "—"}</td>
+                    <td className="px-4 py-3 text-concrete-600 max-w-[120px] truncate">{entry.where_event_occurred || "\u2014"}</td>
                     <td className="px-4 py-3 text-concrete-600 max-w-[200px] truncate">{entry.description}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
