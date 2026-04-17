@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { I18nProvider } from "@/lib/i18n/context";
+import { FeedbackWidget } from "@/components/feedback-widget";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -43,7 +44,10 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body className="bg-slate-50 text-slate-700 antialiased">
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          {children}
+          <FeedbackWidget />
+        </I18nProvider>
       </body>
     </html>
   );
