@@ -32,7 +32,8 @@ export async function updateSession(request: NextRequest) {
   // Redirect unauthenticated users to login (except public pages)
   const isPublicPath =
     request.nextUrl.pathname === "/" ||
-    request.nextUrl.pathname.startsWith("/auth");
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname === "/api/feedback";
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone();
