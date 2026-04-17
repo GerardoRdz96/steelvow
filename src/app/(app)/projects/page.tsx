@@ -19,7 +19,7 @@ export default async function ProjectsPage() {
     .select("*")
     .eq("company_id", companyId)
     .order("created_at", { ascending: false })
-    .range(0, 49);
+    .limit(50);
 
   // BUG-SV-043: Don't leak raw Supabase error messages to client
   // BUG-SV-064: Log error but don't crash — show empty state instead

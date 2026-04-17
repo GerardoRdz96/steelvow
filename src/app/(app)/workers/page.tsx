@@ -65,7 +65,7 @@ export default async function WorkersPage() {
       .select("*")
       .eq("company_id", companyId)
       .order("name")
-      .range(0, 49);
+      .limit(50);
     if (error) console.error("Workers query error:", error.message);
     workers = (data || []) as Worker[];
   }

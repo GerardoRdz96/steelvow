@@ -18,6 +18,10 @@ export function OSHA300Actions({ year, unprocessedCount }: Props) {
     startTransition(async () => {
       try {
         const result = await generateOSHA300Entries(year);
+        if ("error" in result) {
+          setMessage({ type: "error", text: result.error });
+          return;
+        }
         setMessage({ type: "success", text: result.message });
         router.refresh();
       } catch (err) {

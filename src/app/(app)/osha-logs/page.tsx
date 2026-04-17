@@ -31,11 +31,11 @@ export default async function OSHALogsPage() {
     ).catch(() => ({ data: null, error: { message: "company query failed" } }));
 
     const entriesQuery = Promise.resolve(
-      supabase.from("osha_300_entries").select("*").eq("company_id", companyId).eq("year", currentYear).order("case_number").range(0, 199)
+      supabase.from("osha_300_entries").select("*").eq("company_id", companyId).eq("year", currentYear).order("case_number").limit(200)
     ).catch(() => ({ data: null, error: { message: "entries query failed" } }));
 
     const reportableQuery = Promise.resolve(
-      supabase.from("incidents").select("id").eq("company_id", companyId).eq("osha_reportable", true).eq("incident_type", "injury").gte("occurred_at", `${currentYear}-01-01T00:00:00Z`).lte("occurred_at", `${currentYear}-12-31T23:59:59Z`).range(0, 199)
+      supabase.from("incidents").select("id").eq("company_id", companyId).eq("osha_reportable", true).eq("incident_type", "injury").gte("occurred_at", `${currentYear}-01-01T00:00:00Z`).lte("occurred_at", `${currentYear}-12-31T23:59:59Z`).limit(200)
     ).catch(() => ({ data: null, error: { message: "incidents query failed" } }));
 
     const [companyRes, entriesRes, reportableRes] = await Promise.all([companyQuery, entriesQuery, reportableQuery]);

@@ -3,6 +3,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import {
+  getCompanyTier,
+  checkFeatureAccess,
+  tierGateError,
+  getWorkerCount,
+  getTierLimits,
+} from "@/lib/tier-enforcement";
 
 // BUG-SV-009: Server-side input validation for worker data
 function validateWorkerInput(formData: FormData) {
@@ -56,6 +63,20 @@ export async function createWorker(formData: FormData) {
 
   const companyId = user.app_metadata?.company_id;
   if (!companyId) redirect("/company/setup");
+
+  // Tier enforcement: check worker limit
+  const tier = await getCompanyTier(companyId);
+  if (!checkFeatureAccess(tier, "create_worker")) {
+    const gate = tierGateError("create_worker", tier);
+    throw new Error(gate.error);
+  }
+  const limits = getTierLimits(tier);
+  const currentWorkerCount = await getWorkerCount(companyId);
+  if (currentWorkerCount >= limits.workers) {
+    throw new Error(
+      `Your ${tier.charAt(0).toUpperCase() + tier.slice(1)} plan allows up to ${limits.workers} workers. Upgrade to add more.`
+    );
+  }
 
   const validated = validateWorkerInput(formData);
 

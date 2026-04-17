@@ -82,12 +82,12 @@ export default async function DashboardPage() {
     companyRes,
   ] = await Promise.all([
     // BUG-SV-025: Add explicit .eq("company_id", companyId) for defense-in-depth
-    supabase.from("workers").select("id, name, is_active, osha_10_cert_date, osha_30_cert_date, fall_protection_cert_date, forklift_cert_date, first_aid_cert_date").eq("company_id", companyId).eq("is_active", true).range(0, 99),
-    supabase.from("projects").select("id, name, status").eq("company_id", companyId).range(0, 99),
-    supabase.from("inspections").select("id, score, completed_at, checklist_type").eq("company_id", companyId).gte("completed_at", thirtyDaysAgo).range(0, 199),
-    supabase.from("incidents").select("id, severity, incident_type, osha_reportable").eq("company_id", companyId).eq("status", "open").range(0, 49),
-    supabase.from("incidents").select("id, incident_type, severity, description, occurred_at, status").eq("company_id", companyId).order("created_at", { ascending: false }).range(0, 4),
-    supabase.from("toolbox_talks").select("id").eq("company_id", companyId).gte("created_at", thirtyDaysAgo).range(0, 199),
+    supabase.from("workers").select("id, name, is_active, osha_10_cert_date, osha_30_cert_date, fall_protection_cert_date, forklift_cert_date, first_aid_cert_date").eq("company_id", companyId).eq("is_active", true).limit(100),
+    supabase.from("projects").select("id, name, status").eq("company_id", companyId).limit(100),
+    supabase.from("inspections").select("id, score, completed_at, checklist_type").eq("company_id", companyId).gte("completed_at", thirtyDaysAgo).limit(200),
+    supabase.from("incidents").select("id, severity, incident_type, osha_reportable").eq("company_id", companyId).eq("status", "open").limit(50),
+    supabase.from("incidents").select("id, incident_type, severity, description, occurred_at, status").eq("company_id", companyId).order("created_at", { ascending: false }).limit(5),
+    supabase.from("toolbox_talks").select("id").eq("company_id", companyId).gte("created_at", thirtyDaysAgo).limit(200),
     supabase.from("companies").select("name, plan_tier").eq("id", companyId).single(),
   ]);
 

@@ -33,8 +33,8 @@ export default function ToolboxTalkPage() {
       const [projectRes, workerRes, selfRes] = await Promise.all([
         // BUG-SV-022: Add range limit to projects query
         // BUG-SV-042: Filter by company_id to prevent cross-tenant data access
-        supabase.from("projects").select("id, name").eq("company_id", companyId).eq("status", "active").order("name").range(0, 49),
-        supabase.from("workers").select("id, name").eq("company_id", companyId).eq("is_active", true).order("name").range(0, 49),
+        supabase.from("projects").select("id, name").eq("company_id", companyId).eq("status", "active").order("name").limit(50),
+        supabase.from("workers").select("id, name").eq("company_id", companyId).eq("is_active", true).order("name").limit(50),
         // BUG-SV-045: Filter by company_id to match server actions pattern
         supabase.from("workers").select("id").eq("email", user.email).eq("company_id", companyId).single(),
       ]);

@@ -49,7 +49,7 @@ export default function InspectionPage() {
         .eq("company_id", companyId)
         .eq("status", "active")
         .order("name")
-        .range(0, 49);
+        .limit(50);
 
       setProjects(projectList || []);
 

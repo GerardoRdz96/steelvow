@@ -37,7 +37,7 @@ export default function IncidentReportPage() {
         .eq("company_id", companyId)
         .eq("status", "active")
         .order("name")
-        .range(0, 49);
+        .limit(50);
       setProjects(projectList || []);
 
       // BUG-SV-045: Filter by company_id to match server actions pattern

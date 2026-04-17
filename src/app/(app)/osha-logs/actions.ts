@@ -3,6 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import {
+  getCompanyTier,
+  checkFeatureAccess,
+  tierGateError,
+} from "@/lib/tier-enforcement";
 
 /**
  * Auto-generate OSHA 300 entries from OSHA-reportable incidents
@@ -15,6 +20,12 @@ export async function generateOSHA300Entries(year: number) {
 
   const companyId = user.app_metadata?.company_id;
   if (!companyId) redirect("/company/setup");
+
+  // Tier enforcement: OSHA 300 generation requires Pro+
+  const tier = await getCompanyTier(companyId);
+  if (!checkFeatureAccess(tier, "osha_300")) {
+    return tierGateError("osha_300", tier);
+  }
 
   // Validate year
   if (year < 2020 || year > new Date().getFullYear() + 1) {
@@ -35,7 +46,7 @@ export async function generateOSHA300Entries(year: number) {
     .gte("occurred_at", startDate)
     .lte("occurred_at", endDate)
     .order("occurred_at")
-    .range(0, 199);
+    .limit(200);
 
   // BUG-SV-028: Don't leak Supabase error details to client
   if (incErr) {
@@ -52,7 +63,7 @@ export async function generateOSHA300Entries(year: number) {
     .select("incident_id")
     .eq("company_id", companyId)
     .eq("year", year)
-    .range(0, 199);
+    .limit(200);
 
   const existingIds = new Set((existing || []).map((e) => e.incident_id));
 
@@ -178,7 +189,7 @@ export async function getOSHA300CSV(year: number) {
     .eq("company_id", companyId)
     .eq("year", year)
     .order("case_number")
-    .range(0, 499);
+    .limit(500);
 
   // BUG-SV-028: Don't leak Supabase error details to client
   if (error) {

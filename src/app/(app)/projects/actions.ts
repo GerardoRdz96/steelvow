@@ -3,6 +3,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import {
+  getCompanyTier,
+  checkFeatureAccess,
+  tierGateError,
+  getProjectCount,
+  getTierLimits,
+} from "@/lib/tier-enforcement";
 
 function validateProjectInput(formData: FormData) {
   const name = (formData.get("name") as string)?.trim();
@@ -27,6 +34,22 @@ export async function createProject(formData: FormData) {
 
   const companyId = user.app_metadata?.company_id;
   if (!companyId) redirect("/company/setup");
+
+  // Tier enforcement: check project limit
+  const tier = await getCompanyTier(companyId);
+  if (!checkFeatureAccess(tier, "create_project")) {
+    const gate = tierGateError("create_project", tier);
+    throw new Error(gate.error);
+  }
+  const limits = getTierLimits(tier);
+  if (limits.projects !== -1) {
+    const currentCount = await getProjectCount(companyId);
+    if (currentCount >= limits.projects) {
+      throw new Error(
+        `Your ${tier.charAt(0).toUpperCase() + tier.slice(1)} plan allows up to ${limits.projects} projects. Upgrade to add more.`
+      );
+    }
+  }
 
   const validated = validateProjectInput(formData);
 

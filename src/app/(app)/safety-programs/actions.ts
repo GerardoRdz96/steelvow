@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { SafetyProgramType, Language } from "@/types/database";
+import {
+  getCompanyTier,
+  checkFeatureAccess,
+  tierGateError,
+} from "@/lib/tier-enforcement";
 
 import { PROGRAM_LABELS } from "@/lib/safety-program-labels";
 
@@ -40,6 +45,12 @@ export async function generateSafetyProgram(
 
   const companyId = user.app_metadata?.company_id;
   if (!companyId) redirect("/company/setup");
+
+  // Tier enforcement: AI safety programs require Pro+
+  const tier = await getCompanyTier(companyId);
+  if (!checkFeatureAccess(tier, "ai_safety_programs")) {
+    return tierGateError("ai_safety_programs", tier);
+  }
 
   const validTypes: SafetyProgramType[] = ["fall_protection", "hazcom", "respiratory", "loto", "heat"];
   if (!validTypes.includes(programType)) {

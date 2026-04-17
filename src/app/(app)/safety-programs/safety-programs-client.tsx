@@ -69,7 +69,11 @@ export function SafetyProgramsClient({ programs, companyName }: { programs: Safe
     setGenerating(key);
     setError(null);
     try {
-      await generateSafetyProgram(type, lang);
+      const result = await generateSafetyProgram(type, lang);
+      if (result && "error" in result) {
+        setError(result.error);
+        return;
+      }
       // BUG-SV-049: Clear viewing state so list re-renders with fresh data
       if (viewing?.program_type === type && viewing?.language === lang) {
         setViewing(null);
