@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyFeedback } from "@/lib/notify-feedback";
 
 const VALID_CATEGORIES = new Set(["bug", "idea", "praise", "other"]);
 
@@ -79,6 +80,15 @@ export async function POST(request: Request) {
       console.error("[feedback] insert error:", error);
       return NextResponse.json({ error: "Could not save feedback." }, { status: 500 });
     }
+
+    await notifyFeedback({
+      category,
+      message,
+      email: email || user?.email || null,
+      pageUrl,
+      userAgent,
+      userId: user?.id ?? null,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (err) {
